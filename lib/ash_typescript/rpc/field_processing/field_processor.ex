@@ -158,7 +158,19 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
     Validator.check_for_duplicate_fields(fields, path, resource)
 
     Enum.reduce(fields, {[], [], []}, fn field, {select, load, template} ->
-      field = if is_binary(field), do: String.to_existing_atom(field), else: field
+      # Convert string to atom, creating the atom if it doesn't exist
+      # The field_names mapping resolution will happen in classify_field
+      field =
+        if is_binary(field) do
+          try do
+            String.to_existing_atom(field)
+          rescue
+            ArgumentError ->
+              String.to_atom(field)
+          end
+        else
+          field
+        end
 
       case field do
         field_name when is_atom(field_name) ->

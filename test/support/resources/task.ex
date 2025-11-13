@@ -23,7 +23,7 @@ defmodule AshTypescript.Test.Task do
 
   typescript do
     type_name "Task"
-    field_names archived?: :is_archived
+    field_names archived?: :is_archived, user_voted?: :userVoted
     argument_names mark_completed: [completed?: :is_completed]
   end
 
@@ -63,6 +63,16 @@ defmodule AshTypescript.Test.Task do
     end
 
     timestamps()
+  end
+
+  calculations do
+    calculate :user_voted?, :boolean do
+      public? true
+      # Simple calculation that always returns false for testing
+      calculation fn records, _context ->
+        {:ok, Enum.map(records, fn _record -> false end)}
+      end
+    end
   end
 
   actions do

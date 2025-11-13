@@ -32,6 +32,9 @@ defmodule AshTypescript.Resource.Info do
   Gets the original invalid field name for a mapped field name.
   Returns the field name that was mapped to the given valid name, or the same field name if no mapping exists.
 
+  When the mapped_field_name is in snake_case (e.g., :user_voted from "userVoted" after formatting),
+  this function will also try to match against the camelCase version in the mappings.
+
   ## Examples
 
       iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, :address_line1)
@@ -43,10 +46,52 @@ defmodule AshTypescript.Resource.Info do
   def get_original_field_name(resource, mapped_field_name) do
     mapped_names = __MODULE__.typescript_field_names!(resource)
 
+    # First try exact match
     case Enum.find(mapped_names, fn {_original, mapped} -> mapped == mapped_field_name end) do
-      {original, _mapped} -> original
-      nil -> mapped_field_name
+      {original, _mapped} ->
+        original
+
+      nil ->
+        # If no exact match and field_name is snake_case, try converting to camelCase
+        # This handles the case where "userVoted" was converted to :user_voted by the formatter
+        # but the mapping stores it as :userVoted (camelCase)
+        # Only do this for atoms (not strings)
+        if is_atom(mapped_field_name) do
+          field_name_str = Atom.to_string(mapped_field_name)
+
+          # Only try camelCase conversion if the string contains underscores
+          if String.contains?(field_name_str, "_") do
+            camel_case_name =
+              field_name_str
+              |> snake_to_camel_case()
+              |> String.to_atom()
+
+            case Enum.find(mapped_names, fn {_original, mapped} -> mapped == camel_case_name end) do
+              {original, _mapped} -> original
+              nil -> mapped_field_name
+            end
+          else
+            mapped_field_name
+          end
+        else
+          mapped_field_name
+        end
     end
+  end
+
+  # Converts snake_case to camelCase
+  defp snake_to_camel_case(string) do
+    string
+    |> String.split("_")
+    |> Enum.with_index()
+    |> Enum.map(fn {part, index} ->
+      if index == 0 do
+        part
+      else
+        String.capitalize(part)
+      end
+    end)
+    |> Enum.join("")
   end
 
   @doc """

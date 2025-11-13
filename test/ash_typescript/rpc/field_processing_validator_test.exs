@@ -152,5 +152,37 @@ defmodule AshTypescript.Rpc.FieldProcessingValidatorTest do
       assert found_task["completed"] == false
       assert found_task["isArchived"] == false
     end
+
+    test "handles calculation with question mark and mapped field name", %{conn: conn} do
+      # THIS IS THE BUG FROM THE DESCRIPTION:
+      # Task resource has: calculation :user_voted?, :boolean
+      # and field_names [user_voted?: :userVoted]
+      #
+      # When client sends "userVoted":
+      # 1. Input formatter converts 'userVoted' → 'user_voted' (snake_case)
+      # 2. Validator tries String.to_existing_atom("user_voted")
+      # 3. FAILS because atom :user_voted doesn't exist
+      # 4. Only :user_voted? atom exists (with question mark)
+      # 5. Should resolve via field_names mapping but doesn't
+
+      _task =
+        Task
+        |> Ash.Changeset.for_create(:create, %{title: "Calculation Test"})
+        |> Ash.create!()
+
+      # Request the mapped calculation field name
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_tasks",
+          "resource" => "Task",
+          "fields" => ["title", "userVoted"]
+        })
+
+      # Without the fix, this fails with {:invalid_field_type, "user_voted", []}
+      # With the fix, it should succeed
+      assert %{"success" => true, "data" => [found_task]} = result
+      assert found_task["title"] == "Calculation Test"
+      assert found_task["userVoted"] == false
+    end
   end
 end

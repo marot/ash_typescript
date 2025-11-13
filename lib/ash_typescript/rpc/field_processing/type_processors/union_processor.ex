@@ -65,7 +65,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
       end
 
     Validator.validate_non_empty_fields(normalized_fields, field_name, path, "Union")
-    Validator.check_for_duplicate_fields(normalized_fields, path ++ [field_name])
+    Validator.check_for_duplicate_fields(normalized_fields, path ++ [field_name], resource)
 
     attribute = Ash.Resource.Info.attribute(resource, field_name)
     union_types = get_union_types(attribute)

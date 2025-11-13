@@ -100,13 +100,18 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
         [resolve_field_name(field_name, resource)]
 
       field_name when is_binary(field_name) ->
-        try do
-          field_atom = String.to_existing_atom(field_name)
-          [resolve_field_name(field_atom, resource)]
-        rescue
-          _ ->
-            throw({:invalid_field_type, field_name, path})
-        end
+        # Try to convert to existing atom first, but if that fails,
+        # create the atom and let resolve_field_name handle the mapping
+        field_atom =
+          try do
+            String.to_existing_atom(field_name)
+          rescue
+            ArgumentError ->
+              # Atom doesn't exist yet - create it and rely on field_names mapping
+              String.to_atom(field_name)
+          end
+
+        [resolve_field_name(field_atom, resource)]
 
       %{} = field_map ->
         Enum.map(Map.keys(field_map), &resolve_field_name(&1, resource))
