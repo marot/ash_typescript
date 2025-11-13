@@ -25,6 +25,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   """
   def generate_all_schemas_for_resource(resource, allowed_resources) do
     resource_name = Helpers.build_resource_type_name(resource)
+    field_name_union = generate_field_name_union_type(resource)
     unified_schema = generate_unified_resource_schema(resource, allowed_resources)
 
     input_schema =
@@ -36,12 +37,27 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
     base_schemas = """
     // #{resource_name} Schema
+    #{field_name_union}
+
     #{unified_schema}
     """
 
     [base_schemas, input_schema]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n\n")
+  end
+
+  @doc """
+  Generates a field name union type for compile-time validation of field selections.
+  """
+  def generate_field_name_union_type(resource) do
+    resource_name = Helpers.build_resource_type_name(resource)
+    primitive_fields = get_primitive_fields(resource)
+    primitive_fields_union = generate_primitive_fields_union(primitive_fields, resource)
+
+    """
+    export type #{resource_name}FieldName = #{primitive_fields_union};
+    """
   end
 
   @doc """
@@ -106,6 +122,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       |> Enum.map(& &1.name)
 
     aggregate_names = Enum.map(aggregates, & &1.name)
+
     primitive_attrs ++ simple_calcs ++ aggregate_names
   end
 

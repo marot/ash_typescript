@@ -18,6 +18,7 @@ import "./shouldFail/invalidChannelUsage";
 import "./shouldFail/operations";
 import "./shouldFail/wrongPaginationTypes";
 import "./shouldFail/noFieldsReadActions";
+import "./shouldFail/fieldNameTypeValidation";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
