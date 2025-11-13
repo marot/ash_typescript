@@ -155,7 +155,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
   Processes fields for a resource, handling attributes, calculations, relationships, etc.
   """
   def process_resource_fields(resource, fields, path) do
-    Validator.check_for_duplicate_fields(fields, path)
+    Validator.check_for_duplicate_fields(fields, path, resource)
 
     Enum.reduce(fields, {[], [], []}, fn field, {select, load, template} ->
       field = if is_binary(field), do: String.to_existing_atom(field), else: field

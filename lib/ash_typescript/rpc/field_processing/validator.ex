@@ -70,32 +70,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
 
   - `fields` - The list of fields to check
   - `path` - The current path in the field hierarchy for error messages
+  - `resource` - Optional resource module for resolving field_names mappings
   """
-  def check_for_duplicate_fields(fields, path) do
-    field_names =
-      Enum.flat_map(fields, fn field ->
-        case field do
-          field_name when is_atom(field_name) ->
-            [field_name]
-
-          field_name when is_binary(field_name) ->
-            try do
-              [String.to_existing_atom(field_name)]
-            rescue
-              _ ->
-                throw({:invalid_field_type, field_name, path})
-            end
-
-          %{} = field_map ->
-            Map.keys(field_map)
-
-          {field_name, _field_spec} ->
-            [field_name]
-
-          invalid_field ->
-            throw({:invalid_field_type, invalid_field, path})
-        end
-      end)
+  def check_for_duplicate_fields(fields, path, resource \\ nil) do
+    field_names = Enum.flat_map(fields, &extract_field_names(&1, resource, path))
 
     duplicate_fields =
       field_names
@@ -108,5 +86,46 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
       field_path = Utilities.build_field_path(path, duplicate_field)
       throw({:duplicate_field, duplicate_field, field_path})
     end
+  end
+
+  # Extracts and resolves field names from a field specification.
+  #
+  # Handles different field formats (atoms, strings, maps, tuples) and resolves
+  # field_names mappings when a resource is provided.
+  #
+  # Returns a list of resolved field names (atoms).
+  defp extract_field_names(field, resource, path) do
+    case field do
+      field_name when is_atom(field_name) ->
+        [resolve_field_name(field_name, resource)]
+
+      field_name when is_binary(field_name) ->
+        try do
+          field_atom = String.to_existing_atom(field_name)
+          [resolve_field_name(field_atom, resource)]
+        rescue
+          _ ->
+            throw({:invalid_field_type, field_name, path})
+        end
+
+      %{} = field_map ->
+        Enum.map(Map.keys(field_map), &resolve_field_name(&1, resource))
+
+      {field_name, _field_spec} ->
+        [resolve_field_name(field_name, resource)]
+
+      invalid_field ->
+        throw({:invalid_field_type, invalid_field, path})
+    end
+  end
+
+  # Resolves a field name using the resource's field_names mapping if available.
+  #
+  # Returns the original field name if a resource is provided, otherwise returns
+  # the field name unchanged.
+  defp resolve_field_name(field_name, nil), do: field_name
+
+  defp resolve_field_name(field_name, resource) do
+    AshTypescript.Resource.Info.get_original_field_name(resource, field_name)
   end
 end
