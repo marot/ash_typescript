@@ -81,6 +81,15 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
 
   # Private helpers
 
+  # Adds 'const' modifier to the Fields type parameter for function signatures
+  # This enables TypeScript 5.0+ const type parameters, which automatically
+  # infer array literals as readonly tuples without requiring 'as const'
+  defp add_const_to_fields_generic(fields_generic) when is_binary(fields_generic) do
+    String.replace(fields_generic, ~r/^Fields extends/, "const Fields extends")
+  end
+
+  defp add_const_to_fields_generic(nil), do: nil
+
   defp build_destroy_result_type(shape, success_field, error_type_def, config_type_ref) do
     if shape.has_metadata do
       result_type = """
@@ -133,7 +142,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
           config_generic =
             "Config extends #{shape.rpc_action_name_pascal}Config = #{shape.rpc_action_name_pascal}Config"
 
-          function_generics_str = "#{shape.fields_generic}, #{config_generic}"
+          function_generics_str = "#{add_const_to_fields_generic(shape.fields_generic)}, #{config_generic}"
           function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
 
           {result_type_generics_str, result_data_generics_str, function_generics_str,
@@ -148,7 +157,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
           config_generic =
             "Config extends #{shape.rpc_action_name_pascal}Config = #{shape.rpc_action_name_pascal}Config"
 
-          function_generics_str = "#{shape.fields_generic}, #{config_generic}"
+          function_generics_str = "#{add_const_to_fields_generic(shape.fields_generic)}, #{config_generic}"
           function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
 
           {result_type_generics_str, result_data_generics_str, function_generics_str,
@@ -160,7 +169,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
 
           result_type_generics_str = "#{shape.fields_generic}, #{metadata_param}"
           result_data_generics_str = "<Fields, MetadataFields>"
-          function_generics_str = "#{shape.fields_generic}, #{metadata_param}"
+          function_generics_str = "#{add_const_to_fields_generic(shape.fields_generic)}, #{metadata_param}"
           function_return_generics_str = "<Fields, MetadataFields>"
 
           {result_type_generics_str, result_data_generics_str, function_generics_str,
@@ -172,7 +181,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
 
           result_type_generics_str = "#{shape.fields_generic}, #{metadata_param}"
           result_data_generics_str = "<Fields>"
-          function_generics_str = "#{shape.fields_generic}, #{metadata_param}"
+          function_generics_str = "#{add_const_to_fields_generic(shape.fields_generic)}, #{metadata_param}"
 
           function_return_generics_str =
             "<Fields extends undefined ? [] : Fields, MetadataFields>"
@@ -182,12 +191,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
 
         shape.action.type == :read ->
           # Read actions without metadata - fields are required, no conditional needed
-          {shape.fields_generic, "<Fields>", shape.fields_generic, "config: #{config_type_ref}",
+          {shape.fields_generic, "<Fields>", add_const_to_fields_generic(shape.fields_generic), "config: #{config_type_ref}",
            "<Fields>"}
 
         true ->
           # Mutations and generic actions without metadata - fields are optional
-          {shape.fields_generic, "<Fields>", shape.fields_generic, "config: #{config_type_ref}",
+          {shape.fields_generic, "<Fields>", add_const_to_fields_generic(shape.fields_generic), "config: #{config_type_ref}",
            "<Fields extends undefined ? [] : Fields>"}
       end
 
