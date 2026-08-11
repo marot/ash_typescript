@@ -90,6 +90,17 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      {:unknown_field, _field_atom, "generic", field_path} ->
+        %{
+          type: "unknown_field",
+          message: "Unknown field '#{field_path}' for the action's return type",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Check the field name spelling and ensure the returned value provides it"
+          }
+        }
+
       {:unknown_field, _field_atom, resource, field_path} ->
         %{
           type: "unknown_field",

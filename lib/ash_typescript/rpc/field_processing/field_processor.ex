@@ -490,7 +490,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
     field_specs = Keyword.get(constraints, :fields, [])
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-      case field do
+      case Utilities.resolve_field_name(field, "map", path) do
         field_name when is_atom(field_name) ->
           if Keyword.has_key?(field_specs, field_name) do
             {select, load, template ++ [field_name]}
@@ -530,14 +530,16 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
   @doc """
   Processes generic fields (for :any return types).
   """
-  def process_generic_fields(requested_fields, _path) do
+  def process_generic_fields(requested_fields, path) do
     template =
       Enum.map(requested_fields, fn
-        field_name when is_atom(field_name) ->
-          field_name
-
         %{} = field_map ->
-          Enum.map(field_map, fn {k, v} -> {k, v} end)
+          Enum.map(field_map, fn {k, v} ->
+            {Utilities.resolve_field_name(k, "generic", path), v}
+          end)
+
+        field_name ->
+          Utilities.resolve_field_name(field_name, "generic", path)
       end)
 
     {[], [], List.flatten(template)}
