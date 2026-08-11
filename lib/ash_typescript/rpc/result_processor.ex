@@ -158,6 +158,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
+  defp normalize_struct_field(module, field_atom, []),
+    do: empty_list_for_field(module, field_atom)
+
+  defp normalize_struct_field(_module, _field_atom, value),
+    do: normalize_value_for_json(value)
+
   defp list_typed_field?(nil, _field_atom), do: false
 
   defp list_typed_field?(module, field_atom) when is_atom(module) do
@@ -274,12 +280,14 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       atom when is_atom(atom) and not is_nil(atom) and not is_boolean(atom) ->
         Atom.to_string(atom)
 
-      # Convert structs to maps recursively
-      %_struct{} = struct_data ->
+      # Convert structs to maps recursively. A struct carries its module, and a
+      # module that declares its fields can say which of them are lists, so an
+      # empty one here is answered from the declaration rather than guessed at.
+      %struct_module{} = struct_data ->
         struct_data
         |> Map.from_struct()
         |> Enum.reduce(%{}, fn {key, val}, acc ->
-          Map.put(acc, key, normalize_value_for_json(val))
+          Map.put(acc, key, normalize_struct_field(struct_module, key, val))
         end)
 
       list when is_list(list) ->
