@@ -70,13 +70,17 @@ defmodule AshTypescript.Rpc.ResultProcessor do
        when is_list(extraction_template) do
     is_tuple = is_tuple(data)
 
-    typed_struct_module =
+    struct_module =
       if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
-        module = data.__struct__
-        if Introspection.is_typed_struct?(module), do: module, else: nil
+        data.__struct__
       else
         nil
       end
+
+    typed_struct_module =
+      if struct_module && Introspection.is_typed_struct?(struct_module),
+        do: struct_module,
+        else: nil
 
     normalized_data =
       cond do
@@ -92,22 +96,41 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
     effective_resource = resource || typed_struct_module
 
+    # A named resource has already had every selected name checked against it. Without
+    # one, a struct answers for whatever key is asked of it, and a struct's bookkeeping
+    # is a key like any other: `__meta__` carries the table name and the module behind
+    # it, and a private attribute sits beside the public ones.
+    visible? =
+      if is_nil(resource) do
+        &exposable_field?(struct_module, &1)
+      else
+        fn _field_atom -> true end
+      end
+
     if is_tuple do
       normalized_data
     else
       Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
         case field_spec do
           field_atom when is_atom(field_atom) or is_tuple(data) ->
-            extract_simple_field(normalized_data, field_atom, acc, effective_resource)
+            if visible?.(field_atom) do
+              extract_simple_field(normalized_data, field_atom, acc, effective_resource)
+            else
+              acc
+            end
 
           {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
-            extract_nested_field(
-              normalized_data,
-              field_atom,
-              nested_template,
-              acc,
-              effective_resource
-            )
+            if visible?.(field_atom) do
+              extract_nested_field(
+                normalized_data,
+                field_atom,
+                nested_template,
+                acc,
+                effective_resource
+              )
+            else
+              acc
+            end
 
           _ ->
             acc
@@ -119,6 +142,28 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # Fallback: Handle results without templates (return all fields)
   defp extract_single_result(data, _template, _resource) do
     normalize_data(data)
+  end
+
+  # A name a module keeps for itself is never a field a client asked for, and a
+  # module that declares which of its fields are public settles the rest.
+  defp exposable_field?(module, field_atom) when is_atom(field_atom) do
+    cond do
+      String.starts_with?(Atom.to_string(field_atom), "__") -> false
+      is_nil(module) -> true
+      Ash.Resource.Info.resource?(module) -> public_resource_field?(module, field_atom)
+      true -> true
+    end
+  end
+
+  defp exposable_field?(_module, _field_atom), do: true
+
+  defp public_resource_field?(module, field_atom) do
+    case Ash.Resource.Info.field(module, field_atom) do
+      nil -> false
+      field -> Map.get(field, :public?, false)
+    end
+  rescue
+    _ -> false
   end
 
   defp extract_simple_field(normalized_data, field_atom, acc, resource) do
@@ -287,7 +332,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         struct_data
         |> Map.from_struct()
         |> Enum.reduce(%{}, fn {key, val}, acc ->
-          Map.put(acc, key, normalize_struct_field(struct_module, key, val))
+          if exposable_field?(nil, key) do
+            Map.put(acc, key, normalize_struct_field(struct_module, key, val))
+          else
+            acc
+          end
         end)
 
       list when is_list(list) ->

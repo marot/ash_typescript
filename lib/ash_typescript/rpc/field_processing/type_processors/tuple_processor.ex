@@ -62,9 +62,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.TupleProcessor do
     field_names = Enum.map(field_specs, &elem(&1, 0))
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-      field = if is_binary(field), do: String.to_existing_atom(field), else: field
-
-      case field do
+      case Utilities.resolve_field_name(field, "tuple", path) do
         field_name when is_atom(field_name) ->
           if Keyword.has_key?(field_specs, field_name) do
             index = Enum.find_index(field_names, &(&1 == field_name))

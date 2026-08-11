@@ -30,6 +30,29 @@ defmodule AshTypescript.Rpc.FieldProcessing.Utilities do
   end
 
   @doc """
+  Resolves a requested field name to the atom the rest of field processing works with.
+
+  Field names arrive from the client as strings and are turned into atoms before
+  they reach a processor, but a name no atom exists for stays a string. Such a
+  name cannot belong to any resource, map, tuple or struct, so it is reported as
+  an unknown field for the given context rather than reaching code that only
+  knows how to handle atoms.
+
+  ## Examples
+
+      iex> resolve_field_name(:title, "map", [])
+      :title
+  """
+  def resolve_field_name(field_name, context, path) when is_binary(field_name) do
+    String.to_existing_atom(field_name)
+  rescue
+    ArgumentError ->
+      throw({:unknown_field, field_name, context, build_field_path(path, field_name)})
+  end
+
+  def resolve_field_name(field_name, _context, _path), do: field_name
+
+  @doc """
   Builds a formatted field path for error messages.
 
   Uses the configured output field formatter to format field names

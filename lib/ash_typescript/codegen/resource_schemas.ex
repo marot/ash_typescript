@@ -471,13 +471,11 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp is_embedded_attribute?(_), do: false
 
-  defp is_typed_struct_attribute?(%{type: type}) when is_atom(type),
-    do: Introspection.is_typed_struct?(type)
-
-  defp is_typed_struct_attribute?(%{type: {:array, type}}) when is_atom(type),
-    do: Introspection.is_typed_struct?(type)
-
-  defp is_typed_struct_attribute?(_), do: false
+  # An attribute is a typed struct here on the same terms as in field processing: its
+  # own constraints carry the fields. An array of typed structs carries them one level
+  # down, under `items`, and is served whole, so it belongs with the primitive fields.
+  defp is_typed_struct_attribute?(attribute),
+    do: Introspection.is_typed_struct_from_attribute?(attribute)
 
   defp is_keyword_attribute?(%{type: Ash.Type.Keyword}), do: true
   defp is_keyword_attribute?(%{type: {:array, Ash.Type.Keyword}}), do: true

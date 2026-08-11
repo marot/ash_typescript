@@ -77,15 +77,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.TypedStructProcessor 
 
     {field_names, template_items} =
       Enum.reduce(requested_fields, {[], []}, fn field, {names, template} ->
-        case field do
-          field_atom when is_atom(field_atom) or is_binary(field_atom) ->
-            field_atom =
-              if is_binary(field_atom) do
-                String.to_existing_atom(field_atom)
-              else
-                field_atom
-              end
-
+        case Utilities.resolve_field_name(field, "typed_struct", path) do
+          field_atom when is_atom(field_atom) ->
             elixir_field_name = Map.get(reverse_mappings, field_atom, field_atom)
 
             if Keyword.has_key?(field_specs, elixir_field_name) do
