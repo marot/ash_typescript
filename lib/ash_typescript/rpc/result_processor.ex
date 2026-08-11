@@ -138,10 +138,54 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       %Ash.NotLoaded{} ->
         acc
 
+      # An empty list is also an empty keyword list, so the value on its own cannot
+      # say whether it belongs in a JSON array or a JSON object. The declared type
+      # of the field can.
+      [] ->
+        Map.put(acc, output_field_name, empty_list_for_field(resource, field_atom))
+
       # Extract the value and normalize it
       value ->
         Map.put(acc, output_field_name, normalize_value_for_json(value))
     end
+  end
+
+  defp empty_list_for_field(resource, field_atom) do
+    if list_typed_field?(resource, field_atom) do
+      []
+    else
+      normalize_value_for_json([])
+    end
+  end
+
+  defp list_typed_field?(nil, _field_atom), do: false
+
+  defp list_typed_field?(module, field_atom) when is_atom(module) do
+    case field_definition(module, field_atom) do
+      %Ash.Resource.Aggregate{kind: kind} -> kind == :list
+      %{type: {:array, _}} -> true
+      %{cardinality: :many} -> true
+      _ -> false
+    end
+  end
+
+  defp list_typed_field?(_module, _field_atom), do: false
+
+  defp field_definition(module, field_atom) do
+    cond do
+      Ash.Resource.Info.resource?(module) ->
+        Ash.Resource.Info.field(module, field_atom)
+
+      Introspection.is_typed_struct?(module) ->
+        module
+        |> Introspection.get_typed_struct_fields()
+        |> Enum.find(&(Map.get(&1, :name) == field_atom))
+
+      true ->
+        nil
+    end
+  rescue
+    _ -> nil
   end
 
   defp extract_nested_field(normalized_data, field_atom, nested_template, acc, resource) do
