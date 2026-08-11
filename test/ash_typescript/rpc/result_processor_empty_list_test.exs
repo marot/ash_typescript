@@ -2,10 +2,29 @@
 #
 # SPDX-License-Identifier: MIT
 
+defmodule AshTypescript.Rpc.ResultProcessorEmptyListTest.Summary do
+  @moduledoc false
+  use Ash.TypedStruct
+
+  typed_struct do
+    field(:total, :integer)
+    field(:entries, {:array, :string})
+    field(:options, :keyword, constraints: [fields: [priority: [type: :integer]]])
+  end
+end
+
+defmodule AshTypescript.Rpc.ResultProcessorEmptyListTest.Anonymous do
+  @moduledoc false
+  defstruct entries: []
+end
+
 defmodule AshTypescript.Rpc.ResultProcessorEmptyListTest do
   use ExUnit.Case, async: true
 
+  alias AshTypescript.Rpc.FieldProcessing.FieldProcessor
   alias AshTypescript.Rpc.ResultProcessor
+  alias AshTypescript.Rpc.ResultProcessorEmptyListTest.Anonymous
+  alias AshTypescript.Rpc.ResultProcessorEmptyListTest.Summary
   alias AshTypescript.Test.Todo
 
   describe "empty values in list-typed fields" do
@@ -94,6 +113,60 @@ defmodule AshTypescript.Rpc.ResultProcessorEmptyListTest do
   describe "fields without declared type information" do
     test "an empty keyword result keeps its object shape" do
       assert ResultProcessor.normalize_value_for_json([]) == %{}
+    end
+
+    test "a struct whose module declares nothing keeps the object shape too" do
+      result = ResultProcessor.normalize_value_for_json(%Anonymous{entries: []})
+
+      assert result == %{entries: %{}}
+    end
+  end
+
+  describe "empty values inside a returned struct" do
+    test "an empty array field of a typed struct stays a list" do
+      result = ResultProcessor.normalize_value_for_json(%Summary{total: 0, entries: []})
+
+      assert result[:entries] == []
+    end
+
+    test "a populated array field of a typed struct is unchanged" do
+      result = ResultProcessor.normalize_value_for_json(%Summary{total: 1, entries: ["a"]})
+
+      assert result[:entries] == ["a"]
+    end
+
+    test "an empty keyword field of a typed struct stays an object" do
+      result = ResultProcessor.normalize_value_for_json(%Summary{options: []})
+
+      assert result[:options] == %{}
+    end
+
+    test "an empty array attribute of a resource struct stays a list" do
+      result = ResultProcessor.normalize_value_for_json(%Todo{tags: []})
+
+      assert result[:tags] == []
+    end
+
+    test "an empty keyword attribute of a resource struct stays an object" do
+      result = ResultProcessor.normalize_value_for_json(%Todo{options: []})
+
+      assert result[:options] == %{}
+    end
+  end
+
+  describe "a :struct return with no instance_of constraint" do
+    test "field selection falls back to the generic path instead of raising" do
+      assert {[], [], [:total, :entries]} =
+               FieldProcessor.process_fields_for_type(
+                 {:ash_type, Ash.Type.Struct, []},
+                 [:total, :entries],
+                 []
+               )
+    end
+
+    test "an empty field selection is still accepted" do
+      assert {[], [], []} =
+               FieldProcessor.process_fields_for_type({:ash_type, Ash.Type.Struct, []}, [], [])
     end
   end
 end

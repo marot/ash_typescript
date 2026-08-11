@@ -95,8 +95,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
         process_fields_for_type(inner_return_type, requested_fields, path)
 
       {:ash_type, Ash.Type.Struct, constraints} ->
+        # `nil` is an atom, so a :struct return with no instance_of constraint used
+        # to be handed to process_resource_fields/3 as if it named a resource, and
+        # Spark raised "`nil` is not a Spark DSL module" out of the request. There
+        # is no resource to select against, which is what the generic path is for.
         case Keyword.get(constraints, :instance_of) do
-          resource_module when is_atom(resource_module) ->
+          resource_module when is_atom(resource_module) and not is_nil(resource_module) ->
             process_resource_fields(resource_module, requested_fields, path)
 
           _ ->
